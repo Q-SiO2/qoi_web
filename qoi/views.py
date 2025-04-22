@@ -58,7 +58,7 @@ def custom_500(request):
 
 # Define custom dashboard views
 def custom_admin_dashboard(request):
-    return render(request, 'admin_dashboard.html')
+    return render(request, 'custom_admin_dashboard.html')
 
 def custom_professor_dashboard(request):
-    return render(request, 'professor_dashboard.html')
+    return render(request, 'custom_prof_dashboard.html')
