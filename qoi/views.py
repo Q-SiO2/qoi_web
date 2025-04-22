@@ -55,3 +55,10 @@ def custom_404(request, exception):
 
 def custom_500(request):
     return render(request, 'custom_500.html', status=500)
+
+# Define custom dashboard views
+def custom_admin_dashboard(request):
+    return render(request, 'admin_dashboard.html')
+
+def custom_professor_dashboard(request):
+    return render(request, 'professor_dashboard.html')
