@@ -29,7 +29,7 @@ def upload_students(request):
                     return redirect('upload_students')
 
                 # Create or get the StudentGroup
-                group, created = StudentGroup.objects.get_or_create(filiere=filiere, year=annee)
+                group, created = StudentGroup.objects.get_or_create(filiere=filiere, year=annee, semester=semestre)
 
                 # Process student data
                 for index, row in df.iloc[4:].iterrows():
