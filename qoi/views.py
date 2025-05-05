@@ -1,64 +1,69 @@
-# Import necessary modules and models
-
+import pandas as pd
+import secrets  # For generating random passwords
 from django.shortcuts import render, redirect
 from django.contrib import messages
-from django.contrib.auth import authenticate, login
-from django.contrib.auth.models import User  # Import User for authentication logic
-from .models import Professor, Admin
+from .forms import UploadFileForm
+from .models import Student, StudentGroup
+from django.contrib.auth.hashers import make_password  # For hashing passwords
 
-# Define a view function for the home page
-def home(request):
-    return render(request, 'home.html')
+def upload_students(request):
+    if request.method == 'POST':
+        form = UploadFileForm(request.POST, request.FILES)
+        if form.is_valid():
+            # Get the uploaded file
+            uploaded_file = request.FILES['file']
 
-# Define a view function for the login page
-def login_page(request):
-    if request.method == "POST":
-        username = request.POST.get('username').strip()
-        password = request.POST.get('password')
+            try:
+                # Read the Excel file using pandas
+                df = pd.read_excel(uploaded_file, header=None)
 
-        # Custom validation for empty fields
-        if not username or not password:
-            messages.error(request, "Username and password are required.")
-            return redirect('/login/')
-        
-        # Authenticate the user with the username and password
-        user = authenticate(username=username, password=password)
+                # Extract general information (filiere, annee, semestre)
+                infos = df.iloc[3, 3]
+                infos_split = [x.strip() for x in str(infos).split(';')]
+                filiere = infos_split[0] if len(infos_split) > 0 else None
+                annee = infos_split[1] if len(infos_split) > 1 else None
+                semestre = infos_split[2] if len(infos_split) > 2 else None
 
-        if user is None:
-            messages.error(request, "Invalid username or password.")
-            return redirect('/login/')
+                if not filiere or not annee or not semestre:
+                    messages.error(request, "Filiere, annee, or semester information is missing in the file.")
+                    return redirect('upload_students')
 
-        if not user.is_active:
-            messages.error(request, "Your account is inactive. Please contact support.")
-            return redirect('/login/')
+                # Create or get the StudentGroup
+                group, created = StudentGroup.objects.get_or_create(filiere=filiere, year=annee)
 
-        # Check if the user is an admin
-        if Admin.objects.filter(email=user.email).exists():
-            login(request, user)
-            return redirect('/custom-admin-dashboard/')  # to be replaced with our custom admin dashboard URL
+                # Process student data
+                for index, row in df.iloc[4:].iterrows():
+                    nom_prenom = row[3]
+                    email = row[5] if len(row) > 5 else ""
 
-        # Check if the user is a professor
-        elif Professor.objects.filter(email=user.email).exists():
-            login(request, user)
-            return redirect('/custom-professor-dashboard/')  # to be replaced with our custom professor dashboard URL
+                    if pd.isna(nom_prenom):
+                        messages.error(request, f"Error: Empty 'Nom Prenom' at row {index + 1}. Skipping.")
+                        continue
 
-        # Deny access for users who are neither admin nor professor
+                    # Generate a random password
+                    random_password = secrets.token_urlsafe(8)  # Generate an 8-character random password
+                    hashed_password = make_password(random_password)  # Hash the password
+
+                    # Create a new student
+                    Student.objects.create(
+                        name=nom_prenom,
+                        email=email,
+                        student_id=f"ID-{index + 1}",  # Generate a unique ID
+                        password_hash=hashed_password,  # Save the hashed password
+                        group=group
+                    )
+
+                    # Log the generated password (for sending to the user)
+                    print(f"Generated password for {nom_prenom}: {random_password}")
+
+                messages.success(request, "Students uploaded successfully!")
+                return redirect('upload_students')
+
+            except Exception as e:
+                messages.error(request, f"Error processing file: {str(e)}")
         else:
-            messages.error(request, "Access Denied. You do not have the required permissions.")
-            return redirect('/login/')
+            messages.error(request, "Invalid form submission.")
+    else:
+        form = UploadFileForm()
 
-    return render(request, 'login.html')
-
-# Define custom error handlers
-def custom_404(request, exception):
-    return render(request, 'custom_404.html', status=404)
-
-def custom_500(request):
-    return render(request, 'custom_500.html', status=500)
-
-# Define custom dashboard views
-def custom_admin_dashboard(request):
-    return render(request, 'custom_admin_dashboard.html')
-
-def custom_professor_dashboard(request):
-    return render(request, 'custom_prof_dashboard.html')
+    return render(request, 'upload_students.html', {'form': form})

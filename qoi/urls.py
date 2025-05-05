@@ -1,5 +1,7 @@
 from django.urls import path
-#now import the views.py file into this code
 from . import views
-urlpatterns=[
+
+urlpatterns = [
+    path('upload-students/', views.upload_students, name='upload_students'),
 ]
+
